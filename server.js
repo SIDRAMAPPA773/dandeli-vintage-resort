@@ -333,7 +333,20 @@ Payment Status: ${booking.hasScreenshot ? 'ATTACHED & UPLOADED' : 'Pending'}
 Approval Code for Guest: ${booking.code}
 (Open Manager Portal http://localhost:${PORT}/manager to assign room details, location and send WhatsApp text with code directly to guest)`;
 
-    logSMS(MANAGER_PHONE_FORMATTED, text);
+    const toPhone = booking.managerPhone || MANAGER_PHONE_FORMATTED;
+    const cleanPhoneDigits = (toPhone || '').replace(/\D/g, '').slice(-10) || MANAGER_PHONE;
+    logSMS(toPhone, text);
+
+    if (process.env.FAST2SMS_API_KEY) {
+        try {
+            console.log('Dispatching live SMS directly to manager ' + (booking.managerName || 'Manager') + ' (' + cleanPhoneDigits + ')...');
+            const res = await sendSMSViaFast2SMS(process.env.FAST2SMS_API_KEY, cleanPhoneDigits, text);
+            console.log('Fast2SMS Response:', res);
+        } catch (err) {
+            console.error('Fast2SMS Error:', err.message);
+        }
+        return;
+    }
 
     if (process.env.FAST2SMS_API_KEY) {
         try {
@@ -400,6 +413,23 @@ const server = http.createServer(async (req, res) => {
                     hasScreenshot = true;
                 }
 
+                const approachedMgrName = (data.managerName || 'Nakul').trim();
+                const approachedMgrPhone = (data.managerPhone || '+91 63611 85700').trim();
+
+                // Match registered manager by phone or username
+                let assignedUsername = null;
+                try {
+                    const allMgrs = await listAllManagers();
+                    const cleanPhone = approachedMgrPhone.replace(/\D/g, '').slice(-10);
+                    const matched = allMgrs.find(m => {
+                        const mPhone = (m.phone || '').replace(/\D/g, '').slice(-10);
+                        return mPhone && mPhone === cleanPhone;
+                    });
+                    if (matched) {
+                        assignedUsername = matched.username;
+                    }
+                } catch(e) {}
+
                 const bookingRecord = {
                     id: bookingId,
                     invoiceNumber: data.invoiceNumber || ('DVR-' + Date.now().toString().slice(-6)),
@@ -425,8 +455,9 @@ const server = http.createServer(async (req, res) => {
                     roomNotes: 'AC, River View, King Bed',
                     resortAddress: 'Dandeli Vintage Resorts, Near Kali River Bridge, Haliyal Road, Dandeli, Karnataka 581325',
                     mapsLocation: 'https://maps.app.goo.gl/9Dandelikali',
-                    managerName: 'Nakul',
-                    managerPhone: '+91 63611 85700',
+                    managerName: approachedMgrName,
+                    managerPhone: approachedMgrPhone,
+                    assignedManagerUsername: assignedUsername,
                     checkOutTime: '11:00 AM',
                     riverActivities: 'Kali River Rafting, Kayaking, Boating, Jacuzzi Bath, Zorbing, River Crossing'
                 };
@@ -590,7 +621,26 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-        // API: Manager Login
+        // Public API: List Active Managers for Customer Booking Form
+    if (pathname === '/api/managers-public' && req.method === 'GET') {
+        try {
+            const list = await listAllManagers();
+            const publicList = list.map(m => ({
+                name: m.name,
+                phone: m.phone,
+                username: m.username
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, managers: publicList }));
+        } catch(e) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, managers: [
+                { name: 'Nakul', phone: '+91 63611 85700', username: 'nakul' }
+            ] }));
+        }
+    }
+
+    // API: Manager Login
     if (pathname === '/api/manager/login' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -821,7 +871,25 @@ const server = http.createServer(async (req, res) => {
         }
 
         await refreshBookingsCache();
-        const bookingsList = Object.values(bookings).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const allList = Object.values(bookings);
+        let bookingsList = allList;
+
+        if (currentUser.role !== 'admin') {
+            const userPhoneDigits = (currentUser.phone || '').replace(/\D/g, '').slice(-10);
+            const userNameLower = (currentUser.name || '').toLowerCase().trim();
+            const userUsername = (currentUser.username || '').toLowerCase().trim();
+
+            bookingsList = allList.filter(b => {
+                const bPhoneDigits = (b.managerPhone || '').replace(/\D/g, '').slice(-10);
+                const bNameLower = (b.managerName || '').toLowerCase().trim();
+                const bUsername = (b.assignedManagerUsername || '').toLowerCase().trim();
+
+                return (userPhoneDigits && bPhoneDigits === userPhoneDigits) ||
+                       (bUsername && bUsername === userUsername) ||
+                       (userNameLower && bNameLower.includes(userNameLower));
+            });
+        }
+        bookingsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -927,11 +995,11 @@ const server = http.createServer(async (req, res) => {
     <main class="max-w-6xl mx-auto p-4 md:p-6">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-                <h2 class="text-xl font-bold text-white">Guest Bookings & WhatsApp Confirmation Desk</h2>
-                <p class="text-xs text-gray-400">Review attached scanned payment screenshots, assign room details and resort location, then send the confirmation text with code directly via WhatsApp.</p>
+                <h2 class="text-xl font-bold text-white">${currentUser.role === 'admin' ? 'All Resort Bookings (Admin Oversight Desk)' : 'My Assigned Guest Bookings & WhatsApp Desk'}</h2>
+                <p class="text-xs text-gray-400">${currentUser.role === 'admin' ? 'Admin overview: all guest registrations across all managers. You can review, reassign or verify any booking.' : 'Registrations from guests who contacted you directly. Verify their scanned payment and send approval code from your WhatsApp.'}</p>
             </div>
             <div class="text-xs bg-emerald-950/60 border border-emerald-700/50 rounded-xl px-4 py-2 text-emerald-300">
-                Total Bookings: <strong class="text-white text-sm">${bookingsList.length}</strong> | Pending: <strong class="text-amber-400 text-sm">${bookingsList.filter(b => b.status !== 'CONFIRMED').length}</strong>
+                ${currentUser.role === 'admin' ? 'Total All Managers: ' : 'My Assigned Bookings: '}<strong class="text-white text-sm">${bookingsList.length}</strong> | Pending: <strong class="text-amber-400 text-sm">${bookingsList.filter(b => b.status !== 'CONFIRMED').length}</strong>
             </div>
         </div>
 
@@ -954,6 +1022,13 @@ const server = http.createServer(async (req, res) => {
 
                     return `
                     <div id="card_${b.id}" class="bg-[#122419] border ${b.status === 'CONFIRMED' ? 'border-emerald-600/50 bg-gradient-to-r from-emerald-950/20 to-[#122419]' : 'border-amber-500/50'} rounded-2xl p-5 md:p-6 shadow-2xl transition">
+                        
+                        ${currentUser.role === 'admin' ? `
+                        <div class="mb-3 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-400/30 text-amber-300 text-xs flex items-center justify-between flex-wrap gap-2">
+                            <span>👤 Approached Manager: <strong class="text-white">${b.managerName || 'Nakul'}</strong> (${b.managerPhone || '+91 63611 85700'})</span>
+                            <span class="text-[10px] text-gray-400">Assigned for WhatsApp verification</span>
+                        </div>
+                        ` : ''}
                         
                         <!-- Top Bar: Guest Info & Approval Code -->
                         <div class="flex flex-wrap items-start justify-between gap-4 mb-4 pb-4 border-b border-white/10">

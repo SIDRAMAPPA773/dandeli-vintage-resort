@@ -286,6 +286,32 @@
                     </div>
                 </div>
 
+                <!-- Row 1.5: Resort Manager Approached by Customer -->
+                <div class="bg-white/[0.04] border border-theme-gold/30 rounded-2xl p-4 sm:p-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-theme-gold text-base">👔</span>
+                        <div>
+                            <h3 class="text-xs font-bold text-theme-gold uppercase tracking-wider">Resort Manager / Executive Contacted</h3>
+                            <p class="text-[11px] text-gray-400">Select or enter the manager/executive you approached for this booking</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="approachedManagerSelect" class="form-label">Manager Name <span class="text-red-400">*</span></label>
+                            <select id="approachedManagerSelect" onchange="handleManagerSelectChange(this)" class="form-input cursor-pointer appearance-none">
+                                <option value="nakul" data-phone="+91 63611 85700" data-name="Nakul" selected>Nakul (Manager) — +91 63611 85700</option>
+                                <option value="custom">Other Manager / Executive</option>
+                            </select>
+                            <input type="text" id="approachedManagerName" value="Nakul" placeholder="Enter manager name" class="form-input mt-2 hidden">
+                        </div>
+                        <div>
+                            <label for="approachedManagerPhone" class="form-label">Manager Mobile Number <span class="text-red-400">*</span></label>
+                            <input type="text" id="approachedManagerPhone" required value="+91 63611 85700" placeholder="+91 63611 85700" class="form-input font-mono font-medium">
+                            <p class="text-[10px] text-gray-400 mt-1">Verification and approval will be routed directly to this manager.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Row 2: Capacity & Resort Details -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -897,6 +923,48 @@
         let currentApprovalCode = ""; // Unique dynamic code generated per booking
         let isPaymentApproved = false;
 
+        // Handle Approached Manager Selection
+        function handleManagerSelectChange(select) {
+            const nameInput = document.getElementById('approachedManagerName');
+            const phoneInput = document.getElementById('approachedManagerPhone');
+            if (!select || !nameInput || !phoneInput) return;
+
+            if (select.value === 'custom') {
+                nameInput.classList.remove('hidden');
+                nameInput.value = '';
+                nameInput.focus();
+                phoneInput.value = '';
+            } else {
+                nameInput.classList.add('hidden');
+                const opt = select.options[select.selectedIndex];
+                nameInput.value = opt.getAttribute('data-name') || select.value;
+                phoneInput.value = opt.getAttribute('data-phone') || '+91 63611 85700';
+            }
+        }
+
+        async function fetchPublicManagers() {
+            try {
+                const res = await fetch('/api/managers-public');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.managers) && data.managers.length > 0) {
+                    const select = document.getElementById('approachedManagerSelect');
+                    if (!select) return;
+                    let html = '';
+                    data.managers.forEach((m, idx) => {
+                        const isSelected = idx === 0 ? 'selected' : '';
+                        html += '<option value="' + m.username + '" data-phone="' + m.phone + '" data-name="' + m.name + '" ' + isSelected + '>' + m.name + ' — ' + m.phone + '</option>';
+                    });
+                    html += '<option value="custom">Other Manager / Executive</option>';
+                    select.innerHTML = html;
+                    handleManagerSelectChange(select);
+                }
+            } catch (e) {
+                console.warn('Could not load manager list dynamically:', e);
+            }
+        }
+        document.addEventListener('DOMContentLoaded', fetchPublicManagers);
+        fetchPublicManagers();
+
         // Generate a new unique 5-digit verification code for every booking
         function generateNewApprovalCode() {
             currentApprovalCode = Math.floor(10000 + Math.random() * 90000).toString();
@@ -1486,8 +1554,14 @@
             document.getElementById('invSubTotal').textContent = '₹' + billing.total.toLocaleString('en-IN');
             document.getElementById('invAdvanceDeducted').textContent = '- ₹' + billing.advance.toLocaleString('en-IN');
             document.getElementById('invBalanceDue').textContent = '₹' + billing.balance.toLocaleString('en-IN');
+            const mgrName = (document.getElementById('approachedManagerName')?.value || 'Nakul').trim();
+            const mgrPhone = (document.getElementById('approachedManagerPhone')?.value || '+91 63611 85700').trim();
             const mgrNameEl = document.getElementById('invManagerName');
-            if (mgrNameEl) mgrNameEl.textContent = 'Manager: Nakul';
+            if (mgrNameEl) mgrNameEl.textContent = 'Manager: ' + mgrName.replace(/^manager:\s*/i, '');
+            const mgrPhoneEl = document.getElementById('invManagerPhone');
+            if (mgrPhoneEl) mgrPhoneEl.textContent = mgrPhone;
+            const phoneLink = document.getElementById('invManagerPhoneLink');
+            if (phoneLink) phoneLink.href = 'tel:' + mgrPhone.replace(/\s+/g, '');
         }
 
         // Open Invoice Preview Modal
@@ -1919,6 +1993,10 @@
             const pkgSelect = document.getElementById('finalizePackage');
             const finalizePackage = pkgSelect ? pkgSelect.value : 'Selected Package';
 
+            // Gather contacted manager details
+            const approachedMgrName = (document.getElementById('approachedManagerName')?.value || 'Nakul').trim();
+            const approachedMgrPhone = (document.getElementById('approachedManagerPhone')?.value || '+91 63611 85700').trim();
+
             // UI Loading indicator
             const submitBtn = document.getElementById('submitBookingBtn');
             const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
@@ -1953,6 +2031,8 @@
                         advanceAmount: billing.advance,
                         balanceAmount: billing.balance,
                         upiId: RESORT_UPI_ID,
+                        managerName: approachedMgrName,
+                        managerPhone: approachedMgrPhone,
                         screenshotData: paymentScreenshotBase64,
                         screenshotName: paymentScreenshotFileName
                     })
