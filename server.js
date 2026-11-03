@@ -814,6 +814,12 @@ const server = http.createServer(async (req, res) => {
 
 // Manager Portal Page
     if (pathname === '/manager') {
+        const currentUser = getAuthenticatedManager(req);
+        if (!currentUser) {
+            res.writeHead(302, { 'Location': '/manager/login' });
+            return res.end();
+        }
+
         await refreshBookingsCache();
         const bookingsList = Object.values(bookings).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const html = `<!DOCTYPE html>
