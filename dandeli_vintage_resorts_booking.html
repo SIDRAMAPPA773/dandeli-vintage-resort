@@ -817,10 +817,11 @@
                         </div>
                         <div>
                             <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Resort Manager Contact</span>
-                            <a id="invManagerPhoneLink" href="tel:+916361185700" class="font-bold text-gray-900 text-sm font-mono hover:text-emerald-800 inline-flex items-center gap-1 mt-0.5 transition-colors">
+                            <span id="invManagerName" class="font-bold text-gray-900 text-sm block">Manager: Nakul</span>
+                            <a id="invManagerPhoneLink" href="tel:+916361185700" class="font-semibold text-emerald-900 text-xs font-mono hover:text-emerald-800 inline-flex items-center gap-1 transition-colors">
                                 <span id="invManagerPhone">+91 63611 85700</span>
                             </a>
-                            <span class="text-[11px] text-emerald-700 block mt-0.5">Scanned Payment Verified & Room Allocated</span>
+                            <span class="text-[10px] text-emerald-700 block mt-0.5">Scanned Payment Verified & Room Allocated</span>
                         </div>
                     </div>
                     <div class="mb-1.5 pb-1.5 border-b border-emerald-200">
@@ -1404,6 +1405,8 @@
             setEl('invAssignedRoomNotes', bk.roomNotes || '');
 
             // Resort Manager Contact
+            const mgrName = bk.managerName ? (bk.managerName.toLowerCase().startsWith('manager') ? bk.managerName : 'Manager: ' + bk.managerName) : 'Manager: Nakul';
+            setEl('invManagerName', mgrName);
             const mgrPhone = bk.managerPhone || '+91 63611 85700';
             setEl('invManagerPhone', mgrPhone);
             const phoneLink = document.getElementById('invManagerPhoneLink');
@@ -1483,6 +1486,8 @@
             document.getElementById('invSubTotal').textContent = '₹' + billing.total.toLocaleString('en-IN');
             document.getElementById('invAdvanceDeducted').textContent = '- ₹' + billing.advance.toLocaleString('en-IN');
             document.getElementById('invBalanceDue').textContent = '₹' + billing.balance.toLocaleString('en-IN');
+            const mgrNameEl = document.getElementById('invManagerName');
+            if (mgrNameEl) mgrNameEl.textContent = 'Manager: Nakul';
         }
 
         // Open Invoice Preview Modal

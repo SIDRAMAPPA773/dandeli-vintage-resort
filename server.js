@@ -52,8 +52,117 @@ const bookingSchema = new mongoose.Schema({
     mapsLocation:   { type: String },
     managerPhone:   { type: String },
     riverActivities:{ type: String },
-    landmark:       { type: String }
+    landmark:       { type: String },
+    managerName:    { type: String, default: 'Nakul' }
 }, { strict: false });
+
+// ─── Manager Schema & Model ────────────────────────────────────────────────
+const managerSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: String, required: true },
+    name:     { type: String, required: true },
+    phone:    { type: String, required: true },
+    role:     { type: String, default: 'manager' }, // 'admin' or 'manager'
+    createdAt:{ type: String, default: () => new Date().toISOString() }
+});
+
+const Manager = mongoose.model('Manager', managerSchema);
+
+// In-memory sessions store
+const sessions = new Map();
+
+function createSession(user) {
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions.set(token, {
+        username: user.username,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        expires: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+    });
+    return token;
+}
+
+function parseCookies(req) {
+    const list = {};
+    const cookieHeader = req.headers.cookie;
+    if (!cookieHeader) return list;
+    cookieHeader.split(';').forEach(cookie => {
+        let [name, ...rest] = cookie.split('=');
+        name = name?.trim();
+        if (!name) return;
+        const val = rest.join('=').trim();
+        list[name] = decodeURIComponent(val);
+    });
+    return list;
+}
+
+function getAuthenticatedManager(req) {
+    const cookies = parseCookies(req);
+    const token = cookies['dvr_session'];
+    if (!token) return null;
+    const session = sessions.get(token);
+    if (!session) return null;
+    if (session.expires && session.expires < Date.now()) {
+        sessions.delete(token);
+        return null;
+    }
+    return session;
+}
+
+function deleteSession(req) {
+    const cookies = parseCookies(req);
+    const token = cookies['dvr_session'];
+    if (token) sessions.delete(token);
+}
+
+// Fallback manager storage
+let localManagers = [
+    { username: 'nakul', password: 'Nakul*64', name: 'Nakul', phone: '+91 63611 85700', role: 'admin' }
+];
+
+async function seedAdminManager() {
+    try {
+        if (mongoConnected) {
+            const admin = await Manager.findOne({ username: 'nakul' });
+            if (!admin) {
+                await Manager.create({
+                    username: 'nakul',
+                    password: 'Nakul*64',
+                    name: 'Nakul',
+                    phone: '+91 63611 85700',
+                    role: 'admin'
+                });
+                console.log('👑 Admin manager "nakul" seeded in MongoDB Atlas!');
+            }
+        }
+    } catch (err) {
+        console.error('Error seeding admin manager:', err.message);
+    }
+}
+
+async function findManager(username) {
+    const cleanUser = (username || '').toLowerCase().trim();
+    if (mongoConnected) {
+        return await Manager.findOne({ username: cleanUser }).lean();
+    }
+    return localManagers.find(m => m.username.toLowerCase() === cleanUser);
+}
+
+async function saveNewManager(data) {
+    if (mongoConnected) {
+        return await Manager.create(data);
+    }
+    localManagers.push(data);
+    return data;
+}
+
+async function listAllManagers() {
+    if (mongoConnected) {
+        return await Manager.find({}, '-password').sort({ createdAt: -1 }).lean();
+    }
+    return localManagers.map(({ password, ...rest }) => rest);
+}
 
 const Booking = mongoose.model('Booking', bookingSchema);
 
@@ -73,6 +182,7 @@ async function connectMongo() {
         await mongoose.connect(MONGODB_URI);
         mongoConnected = true;
         console.log('✅ MongoDB Atlas connected successfully!');
+        await seedAdminManager();
     } catch (err) {
         console.error('❌ MongoDB connection failed:', err.message);
         console.warn('   Falling back to local JSON file storage.\n');
@@ -315,6 +425,7 @@ const server = http.createServer(async (req, res) => {
                     roomNotes: 'AC, River View, King Bed',
                     resortAddress: 'Dandeli Vintage Resorts, Near Kali River Bridge, Haliyal Road, Dandeli, Karnataka 581325',
                     mapsLocation: 'https://maps.app.goo.gl/9Dandelikali',
+                    managerName: 'Nakul',
                     managerPhone: '+91 63611 85700',
                     checkOutTime: '11:00 AM',
                     riverActivities: 'Kali River Rafting, Kayaking, Boating, Jacuzzi Bath, Zorbing, River Crossing'
@@ -445,7 +556,23 @@ const server = http.createServer(async (req, res) => {
                 if (data.riverActivities !== undefined) updates.riverActivities = data.riverActivities;
                 if (data.resortAddress !== undefined) updates.resortAddress = data.resortAddress;
                 if (data.mapsLocation !== undefined) updates.mapsLocation = data.mapsLocation;
-                if (data.managerPhone !== undefined) updates.managerPhone = data.managerPhone;
+                
+                const authUser = getAuthenticatedManager(req);
+                if (data.managerName !== undefined) {
+                    updates.managerName = data.managerName;
+                } else if (authUser && authUser.name) {
+                    updates.managerName = authUser.name;
+                } else if (!existing.managerName) {
+                    updates.managerName = 'Nakul';
+                }
+
+                if (data.managerPhone !== undefined) {
+                    updates.managerPhone = data.managerPhone;
+                } else if (authUser && authUser.phone) {
+                    updates.managerPhone = authUser.phone;
+                } else if (!existing.managerPhone) {
+                    updates.managerPhone = '+91 63611 85700';
+                }
 
                 const updated = await dbUpdate(bookingId, updates);
 
@@ -463,7 +590,229 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // Manager Portal Page
+        // API: Manager Login
+    if (pathname === '/api/manager/login' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const username = (data.username || '').trim().toLowerCase();
+                const password = data.password || '';
+
+                const mgr = await findManager(username);
+                if (!mgr || mgr.password !== password) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ success: false, error: 'Invalid username or password' }));
+                }
+
+                const token = createSession(mgr);
+                res.writeHead(200, {
+                    'Content-Type': 'application/json',
+                    'Set-Cookie': `dvr_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
+                });
+                res.end(JSON.stringify({
+                    success: true,
+                    user: { username: mgr.username, name: mgr.name, phone: mgr.phone, role: mgr.role }
+                }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // API: Manager Logout
+    if (pathname === '/api/manager/logout' && req.method === 'POST') {
+        deleteSession(req);
+        res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Set-Cookie': 'dvr_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        });
+        return res.end(JSON.stringify({ success: true }));
+    }
+
+    // API: Create Manager (Only Admin Nakul can create another manager)
+    if (pathname === '/api/manager/create-manager' && req.method === 'POST') {
+        const auth = getAuthenticatedManager(req);
+        if (!auth || auth.role !== 'admin') {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, error: 'Access denied: Only Nakul (Admin Manager) can create another manager.' }));
+        }
+
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const username = (data.username || '').trim().toLowerCase();
+                const password = (data.password || '').trim();
+                const name = (data.name || '').trim();
+                const phone = (data.phone || '').trim();
+
+                if (!username || !password || !name || !phone) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ success: false, error: 'All fields (Name, Phone, Username, Password) are required.' }));
+                }
+
+                const existing = await findManager(username);
+                if (existing) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ success: false, error: `Username "${username}" is already taken.` }));
+                }
+
+                const newMgr = await saveNewManager({
+                    username,
+                    password,
+                    name,
+                    phone,
+                    role: 'manager',
+                    createdAt: new Date().toISOString()
+                });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    message: `Manager "${name}" (${username}) created successfully!`,
+                    manager: { username: newMgr.username, name: newMgr.name, phone: newMgr.phone, role: 'manager' }
+                }));
+            } catch (err) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // API: List Managers (Admin only)
+    if (pathname === '/api/manager/list' && req.method === 'GET') {
+        const auth = getAuthenticatedManager(req);
+        if (!auth || auth.role !== 'admin') {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, error: 'Access denied: Only Nakul (Admin Manager) can view manager list.' }));
+        }
+        const list = await listAllManagers();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, managers: list }));
+    }
+
+    // Route: Manager Login Page
+    if (pathname === '/manager/login') {
+        const auth = getAuthenticatedManager(req);
+        if (auth) {
+            res.writeHead(302, { 'Location': '/manager' });
+            return res.end();
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Manager Sign In | Dandeli Vintage Resorts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif']
+                    },
+                    colors: {
+                        'theme-gold': '#e6d5b8'
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-[#0b1710] text-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#0f2417] border border-theme-gold/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div class="absolute -top-20 -right-20 w-44 h-44 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-20 -left-20 w-44 h-44 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div class="text-center mb-6">
+            <img src="/vintage_resorts_logo.jpg" onerror="this.src='vintage_resorts_logo.jpg'" alt="Logo" class="w-20 h-20 mx-auto rounded-full object-cover border-2 border-theme-gold/80 shadow-lg ring-4 ring-emerald-900/60 mb-3">
+            <h1 class="text-2xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#f7edd9] via-theme-gold to-[#d8be8d]">Dandeli Vintage Resorts</h1>
+            <p class="text-xs uppercase tracking-widest text-amber-300 font-extrabold mt-1">Manager Secure Access Desk</p>
+            <p class="text-[11px] text-gray-400 mt-0.5">Luxury Feel Affordable Deal</p>
+        </div>
+
+        <div id="errorAlert" class="hidden mb-4 p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-xs font-medium flex items-center gap-2">
+            <svg class="w-4 h-4 flex-shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span id="errorMessage">Invalid credentials</span>
+        </div>
+
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+            <div>
+                <label for="username" class="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">Username</label>
+                <input type="text" id="username" required autocomplete="username" placeholder="e.g. nakul" class="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-theme-gold focus:ring-2 focus:ring-theme-gold/20 transition">
+            </div>
+
+            <div>
+                <label for="password" class="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">Password</label>
+                <input type="password" id="password" required autocomplete="current-password" placeholder="Enter password" class="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-theme-gold focus:ring-2 focus:ring-theme-gold/20 transition">
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full mt-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-sm shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                <span>Sign In to Manager Portal</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+        </form>
+
+        <div class="mt-6 pt-4 border-t border-white/10 text-center">
+            <a href="/" class="text-xs text-amber-200/70 hover:text-amber-200 transition underline underline-offset-4">← Back to Customer Booking Portal</a>
+        </div>
+    </div>
+
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const errBox = document.getElementById('errorAlert');
+            const errMsg = document.getElementById('errorMessage');
+            errBox.classList.add('hidden');
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span>Verifying credentials...</span>';
+
+            try {
+                const res = await fetch('/api/manager/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = '/manager';
+                } else {
+                    errMsg.textContent = data.error || 'Invalid username or password.';
+                    errBox.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Sign In to Manager Portal</span>';
+                }
+            } catch (err) {
+                errMsg.textContent = 'Connection error. Please try again.';
+                errBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<span>Sign In to Manager Portal</span>';
+            }
+        }
+    </script>
+</body>
+</html>`);
+    }
+
+// Manager Portal Page
     if (pathname === '/manager') {
         await refreshBookingsCache();
         const bookingsList = Object.values(bookings).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -539,12 +888,31 @@ const server = http.createServer(async (req, res) => {
                     </p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <a href="/" target="_blank" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-amber-300 border border-amber-300/30 transition flex items-center gap-1 shadow-sm">
-                    <span>Open Booking Page ↗</span>
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- User badge -->
+                <div class="px-3 py-1.5 rounded-xl bg-black/40 border border-emerald-700/50 text-xs text-gray-200 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>${currentUser.name}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${currentUser.role === 'admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'}">
+                        ${currentUser.role === 'admin' ? '👑 Admin' : '👤 Manager'}
+                    </span>
+                </div>
+
+                ${currentUser.role === 'admin' ? `
+                <!-- Admin Only: Create/Manage Managers button -->
+                <button type="button" onclick="openStaffModal()" class="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5">
+                    <span>👥 Manage Staff</span>
+                </button>
+                ` : ''}
+
+                <a href="/" target="_blank" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-amber-300 border border-amber-300/30 transition flex items-center gap-1 shadow-sm">
+                    <span>Booking Page ↗</span>
                 </a>
-                <button onclick="location.reload()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-sm">
+                <button onclick="location.reload()" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-sm">
                     <span>↻ Refresh</span>
+                </button>
+                <button type="button" onclick="logoutManager()" class="px-3 py-2 rounded-xl bg-red-950 hover:bg-red-900 text-red-200 border border-red-800 text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                    <span>Sign Out ✕</span>
                 </button>
             </div>
         </div>
@@ -806,8 +1174,8 @@ const server = http.createServer(async (req, res) => {
                                 </div>
                             </div>
 
-                            <!-- Row 3: Resort Location & Manager Number (Landmark removed) -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                            <!-- Row 3: Resort Location & Manager Info (Name & Phone for Invoice) -->
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
                                 <div>
                                     <label class="block text-gray-300 font-semibold mb-1">Resort Address:</label>
                                     <input type="text" id="address_${b.id}" value="${addrVal}" class="input-box">
@@ -818,10 +1186,17 @@ const server = http.createServer(async (req, res) => {
                                 </div>
                                 <div>
                                     <label class="block text-gray-300 font-semibold mb-1 flex items-center justify-between">
-                                        <span>Resort Manager Number:</span>
-                                        <span class="text-emerald-400 text-[10px]">Direct Phone</span>
+                                        <span>Resort Manager Name:</span>
+                                        <span class="text-amber-300 text-[10px]">On Invoice</span>
                                     </label>
-                                    <input type="text" id="managerPhone_${b.id}" value="${managerPhoneVal}" placeholder="+91 63611 85700" class="input-box font-mono font-bold text-emerald-300">
+                                    <input type="text" id="managerName_${b.id}" value="${b.managerName || currentUser.name || 'Nakul'}" placeholder="e.g. Nakul" class="input-box font-bold text-amber-200">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-300 font-semibold mb-1 flex items-center justify-between">
+                                        <span>Resort Manager Phone:</span>
+                                        <span class="text-emerald-400 text-[10px]">On Invoice</span>
+                                    </label>
+                                    <input type="text" id="managerPhone_${b.id}" value="${b.managerPhone || currentUser.phone || managerPhoneVal}" placeholder="+91 63611 85700" class="input-box font-mono font-bold text-emerald-300">
                                 </div>
                             </div>
                         </div>
@@ -955,7 +1330,8 @@ const server = http.createServer(async (req, res) => {
             msg += \`📍 *RESORT LOCATION & CONTACT:*\n\`;
             msg += \`• *Address:* \${address}\n\`;
             msg += \`• *Google Maps Location:* \${maps}\n\`;
-            msg += \`• *Resort Manager Number:* \${managerPhone}\n\n\`;
+            const managerName = (document.getElementById('managerName_' + id)?.value || b.managerName || '${currentUser.name || "Nakul"}').trim();
+            msg += \`• *Resort Manager:* \${managerName} (\${managerPhone})\n\n\`;
 
             msg += \`💰 *BILLING SUMMARY:*\n\`;
             msg += \`• *Total Booking Amount:* ₹\${total.toLocaleString('en-IN')}\n\`;
@@ -1032,7 +1408,8 @@ const server = http.createServer(async (req, res) => {
                 riverActivities: (document.getElementById('activities_' + id)?.value || b.riverActivities || '').trim(),
                 resortAddress: (document.getElementById('address_' + id)?.value || b.resortAddress || '').trim(),
                 mapsLocation: (document.getElementById('maps_' + id)?.value || b.mapsLocation || '').trim(),
-                managerPhone: (document.getElementById('managerPhone_' + id)?.value || b.managerPhone || '+91 63611 85700').trim()
+                managerName: (document.getElementById('managerName_' + id)?.value || b.managerName || '${currentUser.name || "Nakul"}').trim(),
+                managerPhone: (document.getElementById('managerPhone_' + id)?.value || b.managerPhone || '${currentUser.phone || "+91 63611 85700"}').trim()
             };
         }
 
@@ -1107,6 +1484,165 @@ const server = http.createServer(async (req, res) => {
                 window.open(whatsappUrl, '_blank');
             }
             closePreviewModal();
+        }
+    </script>
+
+    <!-- Staff Management Modal (Admin Nakul Only) -->
+    <div id="staffModal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm" onclick="closeStaffModal()"></div>
+        <div class="relative bg-[#0d1f14] border border-amber-400/50 rounded-2xl max-w-2xl w-full p-6 z-10 text-xs shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 mb-4 border-b border-white/10">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">👥</span>
+                    <div>
+                        <h3 class="text-base font-bold text-amber-300">Staff & Manager Management</h3>
+                        <p class="text-[11px] text-gray-400">Admin Control Panel • Only Nakul can create another manager</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeStaffModal()" class="text-gray-400 hover:text-white p-1 text-sm">✕</button>
+            </div>
+
+            <!-- Create Manager Form -->
+            <div class="bg-black/50 border border-emerald-800/50 rounded-xl p-4 mb-5">
+                <h4 class="text-xs font-bold text-emerald-300 uppercase tracking-wider mb-3">➕ Create New Manager Account</h4>
+                <div id="staffAlert" class="hidden mb-3 p-2.5 rounded-lg text-xs font-medium"></div>
+                <form id="createManagerForm" onsubmit="handleCreateManager(event)" class="space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-gray-300 font-semibold mb-1">Full Name *</label>
+                            <input type="text" id="newStaffName" required placeholder="e.g. Ramesh Patil" class="input-box">
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 font-semibold mb-1">Mobile Number (On Invoice) *</label>
+                            <input type="text" id="newStaffPhone" required placeholder="+91 98765 43210" class="input-box">
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 font-semibold mb-1">Login Username *</label>
+                            <input type="text" id="newStaffUsername" required placeholder="e.g. ramesh" class="input-box">
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 font-semibold mb-1">Login Password *</label>
+                            <input type="text" id="newStaffPassword" required placeholder="Create password" class="input-box">
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-1">
+                        <button type="submit" id="createStaffBtn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold rounded-xl shadow transition">
+                            Create Manager
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- List of Current Managers -->
+            <div>
+                <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                    <span>Active Managers</span>
+                    <button type="button" onclick="loadStaffList()" class="text-amber-300 hover:underline text-[11px]">↻ Refresh List</button>
+                </h4>
+                <div id="staffListTable" class="bg-black/40 border border-white/10 rounded-xl overflow-x-auto">
+                    <p class="p-4 text-center text-gray-500 text-xs">Loading manager list...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function logoutManager() {
+            if (!confirm('Are you sure you want to sign out?')) return;
+            try {
+                await fetch('/api/manager/logout', { method: 'POST' });
+                window.location.href = '/manager/login';
+            } catch (err) {
+                window.location.href = '/manager/login';
+            }
+        }
+
+        function openStaffModal() {
+            document.getElementById('staffModal').classList.remove('hidden');
+            loadStaffList();
+        }
+
+        function closeStaffModal() {
+            document.getElementById('staffModal').classList.add('hidden');
+        }
+
+        async function loadStaffList() {
+            const container = document.getElementById('staffListTable');
+            try {
+                const res = await fetch('/api/manager/list');
+                const data = await res.json();
+                if (data.success && data.managers) {
+                    if (data.managers.length === 0) {
+                        container.innerHTML = '<p class="p-4 text-center text-gray-400">No managers found.</p>';
+                        return;
+                    }
+                    let rows = '';
+                    for (let i = 0; i < data.managers.length; i++) {
+                        const m = data.managers[i];
+                        const badgeClass = m.role === 'admin' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300';
+                        rows += '<tr>' +
+                            '<td class="py-2.5 px-3 font-bold text-white">' + m.name + '</td>' +
+                            '<td class="py-2.5 px-3 font-mono text-amber-300">' + m.username + '</td>' +
+                            '<td class="py-2.5 px-3 font-mono text-emerald-300">' + m.phone + '</td>' +
+                            '<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ' + badgeClass + '">' + m.role + '</span></td>' +
+                        '</tr>';
+                    }
+                    container.innerHTML = '<table class="w-full text-left text-xs">' +
+                        '<thead class="bg-white/5 text-gray-400 uppercase text-[10px]">' +
+                            '<tr>' +
+                                '<th class="py-2 px-3">Name</th>' +
+                                '<th class="py-2 px-3">Username</th>' +
+                                '<th class="py-2 px-3">Mobile (Invoice)</th>' +
+                                '<th class="py-2 px-3">Role</th>' +
+                            '</tr>' +
+                        '</thead>' +
+                        '<tbody class="divide-y divide-white/5">' + rows + '</tbody>' +
+                    '</table>';
+                } else {
+                    container.innerHTML = '<p class="p-3 text-red-400">' + (data.error || 'Failed to load') + '</p>';
+                }
+            } catch (err) {
+                container.innerHTML = '<p class="p-3 text-red-400">Network error loading staff list.</p>';
+            }
+        }
+
+        async function handleCreateManager(e) {
+            e.preventDefault();
+            const btn = document.getElementById('createStaffBtn');
+            const alertBox = document.getElementById('staffAlert');
+            alertBox.classList.add('hidden');
+
+            const name = document.getElementById('newStaffName').value.trim();
+            const phone = document.getElementById('newStaffPhone').value.trim();
+            const username = document.getElementById('newStaffUsername').value.trim();
+            const password = document.getElementById('newStaffPassword').value.trim();
+
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+
+            try {
+                const res = await fetch('/api/manager/create-manager', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, phone, username, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alertBox.className = 'mb-3 p-2.5 rounded-lg text-xs font-medium bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 block';
+                    alertBox.textContent = '✓ ' + data.message;
+                    document.getElementById('createManagerForm').reset();
+                    loadStaffList();
+                } else {
+                    alertBox.className = 'mb-3 p-2.5 rounded-lg text-xs font-medium bg-red-950/80 border border-red-500/50 text-red-300 block';
+                    alertBox.textContent = data.error || 'Failed to create manager.';
+                }
+            } catch (err) {
+                alertBox.className = 'mb-3 p-2.5 rounded-lg text-xs font-medium bg-red-950/80 border border-red-500/50 text-red-300 block';
+                alertBox.textContent = 'Connection error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Manager';
+            }
         }
     </script>
 </body>
