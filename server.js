@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 
 const PORT = process.env.PORT || 3000;
+const APP_URL = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || `http://localhost:${PORT}`;
 const MANAGER_PHONE = '6361185700';
 const MANAGER_PHONE_FORMATTED = '+91 63611 85700';
 
@@ -331,7 +332,7 @@ Balance: Rs ${booking.balanceAmount}
 Payment Status: ${booking.hasScreenshot ? 'ATTACHED & UPLOADED' : 'Pending'}
 
 Approval Code for Guest: ${booking.code}
-(Open Manager Portal http://localhost:${PORT}/manager to assign room details, location and send WhatsApp text with code directly to guest)`;
+(Open Manager Portal ${APP_URL}/manager to review registration, allocate room and send approval code to guest)`;
 
     const toPhone = booking.managerPhone || MANAGER_PHONE_FORMATTED;
     const cleanPhoneDigits = (toPhone || '').replace(/\D/g, '').slice(-10) || MANAGER_PHONE;
