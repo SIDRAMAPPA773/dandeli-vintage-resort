@@ -499,7 +499,7 @@
 
                 <!-- Personal Account Note to Save 18% GST -->
                 <div class="max-w-md mx-auto mb-6 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-400/50 text-center">
-                    <p class="text-xs font-bold"><span class="text-amber-400">⚡ GST NOTE:</span><span class="text-amber-200/90"> Personal UPI saves you 18% GST. Need official billing? </span><span class="text-theme-gold underline cursor-pointer" onclick="alert('Contact Manager: +91 63611 85700')">Contact management.</span></p>
+                    <p class="text-xs font-bold"><span class="text-amber-400">⚡ GST NOTE:</span><span class="text-amber-200/90"> Personal UPI saves you 18% GST. Need official billing? </span><span class="text-theme-gold underline cursor-pointer" onclick="alert('Please contact the resort manager for billing assistance.')">Contact management.</span></p>
                 </div>
 
                 <!-- CRITICAL HIGHLIGHT BANNER REQUESTED BY USER -->
@@ -541,7 +541,7 @@
                         <span>Attach Scanned Copy of Payment Confirmation Status</span>
                     </label>
                     <p class="text-[11px] text-gray-300 mb-3">
-                        Upload the scanned screenshot / receipt of your advance deposit. This is transmitted directly to resort manager at <strong class="text-white">+91 63611 85700</strong> for verification.
+                        Upload the scanned screenshot / receipt of your advance deposit. This is transmitted directly to resort manager for verification.
                     </p>
 
                     <div class="flex flex-wrap items-center gap-3">
@@ -558,7 +558,7 @@
                         <img id="paymentScreenshotPreviewImg" src="" alt="Proof Preview" class="w-12 h-12 object-cover rounded-lg border border-white/20 bg-black">
                         <div class="flex-1 min-w-0">
                             <p id="paymentScreenshotPreviewName" class="text-xs font-bold text-white truncate"></p>
-                            <p class="text-[11px] text-emerald-400 font-medium">✓ Scanned payment copy ready for manager (+91 63611 85700)</p>
+                            <p class="text-[11px] text-emerald-400 font-medium">✓ Scanned payment copy ready for manager</p>
                         </div>
                         <button type="button" onclick="clearPaymentScreenshot()" class="text-gray-400 hover:text-red-400 text-xs px-2 py-1">✕ Remove</button>
                     </div>
@@ -570,7 +570,7 @@
                     <span>Submit Booking Directly to Management</span>
                 </button>
                 <p class="text-xs text-gray-400 mt-3 text-center">
-                    Sends booking details & payment status directly to Resort Manager at <strong class="text-theme-gold">+91 63611 85700</strong>. Manager verifies scanned payment status and sends approval code.
+                    Sends booking details & payment status directly to Resort Manager. Manager verifies scanned payment status and sends approval code.
                 </p>
             </div>
         </div>
@@ -598,9 +598,9 @@
             <div id="modalStatusNotice" class="bg-white/5 border border-white/10 rounded-xl p-3 mb-2.5 text-left w-full text-xs text-gray-300 space-y-1">
                 <p class="flex items-center gap-1.5 text-theme-gold font-semibold">
                     <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span>Direct SMS Dispatched to Manager (+91 63611 85700):</span>
+                    <span>Direct SMS Dispatched to Manager:</span>
                 </p>
-                <p>Your booking details and scanned payment confirmation status have been directly transmitted to resort management at <strong class="text-white">+91 63611 85700</strong>.</p>
+                <p>Your booking details and scanned payment confirmation status have been directly transmitted to resort management.</p>
                 <p class="text-[11px] text-gray-400">⚠️ <strong class="text-gray-200">The official invoice is locked</strong> and will be issued once the manager confirms your scanned copy of payment confirmation status and sends your approval code.</p>
             </div>
 
@@ -608,10 +608,10 @@
             <div id="codeEntryContainer" class="w-full bg-black/50 border border-theme-gold/40 rounded-2xl p-3 sm:p-3.5 mb-2.5 text-left">
                 <label class="block text-xs font-bold text-theme-gold uppercase tracking-wider mb-1 flex items-center gap-1.5">
                     <svg class="w-4 h-4 text-theme-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    <span>Enter Code Sent by Manager (+91 63611 85700)</span>
+                    <span>Enter Code Sent by Manager</span>
                 </label>
                 <p class="text-[11px] text-gray-400 mb-2.5">
-                    When the manager at <strong class="text-gray-200">+91 63611 85700</strong> verifies your scanned copy of payment confirmation status, they will send you the confirmation code via SMS. Enter it here:
+                    Once the manager verifies your scanned payment copy, they will send you the confirmation code via SMS. Enter it here:
                 </p>
                 <div class="flex gap-2">
                     <input type="text" id="mgrApprovalPin" placeholder="Enter Code from Manager" class="form-input text-sm py-2.5 px-3 flex-1 bg-black/60 border-theme-gold/40 text-center font-mono font-bold tracking-widest uppercase">
@@ -619,7 +619,7 @@
                         <span>Verify & Download</span>
                     </button>
                 </div>
-                <p id="mgrPinError" class="text-[11px] text-red-400 mt-1.5 hidden font-medium">Incorrect code. Please enter the approval code sent by manager (+91 63611 85700).</p>
+                <p id="mgrPinError" class="text-[11px] text-red-400 mt-1.5 hidden font-medium">Incorrect code. Please contact the manager for the correct approval code.</p>
             </div>
 
             <!-- Invoice Action Buttons -->
@@ -671,13 +671,13 @@
             </div>
 
             <!-- Printable Invoice Content -->
-            <div class="overflow-y-auto p-6 md:p-8 bg-white" id="printableInvoice">
+            <div class="overflow-y-auto p-4 md:p-5 bg-white" id="printableInvoice">
                 <!-- Header -->
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b-2 border-emerald-900/20 gap-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b-2 border-emerald-900/20 gap-2">
                     <div class="flex items-center gap-3">
-                        <img src="vintage_resorts_logo.jpg" onerror="if(typeof LOGO_BASE64_HD!=='undefined') this.src=LOGO_BASE64_HD;" alt="Logo" class="w-14 h-14 rounded-full object-cover border border-emerald-800/30 flex-shrink-0">
+                        <img src="vintage_resorts_logo.jpg" onerror="if(typeof LOGO_BASE64_HD!=='undefined') this.src=LOGO_BASE64_HD;" alt="Logo" class="w-10 h-10 rounded-full object-cover border border-emerald-800/30 flex-shrink-0">
                         <div>
-                            <h2 class="text-2xl font-serif font-extrabold text-[#0f2417] tracking-tight">DANDELI VINTAGE RESORTS</h2>
+                            <h2 class="text-lg font-serif font-extrabold text-[#0f2417] tracking-tight">DANDELI VINTAGE RESORTS</h2>
                             <p class="text-xs text-[#7a5c1e] uppercase tracking-widest mt-0.5 font-bold">Luxury Feel Affordable Deal</p>
                             <p class="text-xs text-gray-600 mt-1">Dandeli, Karnataka, India - 581325</p>
                             <p class="text-xs text-gray-600">WhatsApp / Helpline: +91 63611 85700</p>
@@ -695,10 +695,10 @@
                 </div>
 
                 <!-- Billed To / Guest Info -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6 p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-2 p-3 rounded-xl bg-gray-50 border border-gray-200">
                     <div>
                         <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">GUEST INFORMATION</span>
-                        <p class="font-bold text-gray-900 text-base" id="invGuestName">Rahul Sharma</p>
+                        <p class="font-bold text-gray-900 text-sm" id="invGuestName">Rahul Sharma</p>
                         <p class="text-sm text-gray-600 mt-0.5">Mobile: <span id="invMobNo" class="font-medium text-gray-800">+91 63611 85700</span></p>
                         <p class="text-sm text-gray-600">Guests: <span id="invPersons" class="font-medium text-gray-800">2 Persons</span></p>
                     </div>
@@ -711,23 +711,23 @@
                 </div>
 
                 <!-- Stay Schedule Table -->
-                <div class="mb-6 rounded-xl border border-gray-200 table-responsive">
+                <div class="mb-2 rounded-xl border border-gray-200 table-responsive">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-emerald-950 text-white text-xs uppercase">
                             <tr>
-                                <th class="py-2.5 px-3">Check-In</th>
-                                <th class="py-2.5 px-3">Check-Out</th>
-                                <th class="py-2.5 px-3 text-center">Duration</th>
-                                <th class="py-2.5 px-3 text-right">Package Plan</th>
+                                <th class="py-1.5 px-3">Check-In</th>
+                                <th class="py-1.5 px-3">Check-Out</th>
+                                <th class="py-1.5 px-3 text-center">Duration</th>
+                                <th class="py-1.5 px-3 text-right">Package Plan</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr>
-                                <td class="py-3 px-3">
+                                <td class="py-1.5 px-3">
                                     <span id="invCheckIn" class="font-bold text-gray-800">2026-11-05</span>
                                     <span class="block text-xs text-gray-500">From <span id="invCheckInTime" class="font-semibold text-gray-700">12:00 PM</span></span>
                                 </td>
-                                <td class="py-3 px-3">
+                                <td class="py-1.5 px-3">
                                     <span id="invCheckOut" class="font-bold text-gray-800">2026-11-07</span>
                                     <span class="block text-xs text-gray-500">By <span id="invCheckOutTime" class="font-semibold text-gray-700">11:00 AM</span></span>
                                 </td>
@@ -744,19 +744,19 @@
                 </div>
 
                 <!-- Payment Breakdown & Calculation Table -->
-                <div class="mb-6 rounded-xl border border-gray-200 shadow-sm table-responsive">
+                <div class="mb-2 rounded-xl border border-gray-200 shadow-sm table-responsive">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-emerald-950 text-white text-xs uppercase">
                             <tr>
-                                <th class="py-2.5 px-3">Package & Stay Description</th>
-                                <th class="py-2.5 px-3 text-center">Rate / Person</th>
-                                <th class="py-2.5 px-3 text-center">Guests</th>
-                                <th class="py-2.5 px-3 text-right">Total Amount</th>
+                                <th class="py-1.5 px-3">Package & Stay Description</th>
+                                <th class="py-1.5 px-3 text-center">Rate / Person</th>
+                                <th class="py-1.5 px-3 text-center">Guests</th>
+                                <th class="py-1.5 px-3 text-right">Total Amount</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr>
-                                <td class="py-3 px-3">
+                                <td class="py-1.5 px-3">
                                     <p class="font-bold text-gray-900" id="invPackageTitle">Adventure Package</p>
                                     <p class="text-xs text-gray-500">Package: <span id="invStayTypeDesc" class="font-semibold text-gray-700">Room</span> (<span id="invNightsDesc">2 Nights</span>)</p>
                                 </td>
@@ -783,7 +783,7 @@
 
                             <!-- Advance Deducted Row -->
                             <tr class="bg-emerald-50/70 font-semibold text-sm text-emerald-900">
-                                <td colspan="3" class="py-2.5 px-3">
+                                <td colspan="3" class="py-1.5 px-3">
                                     <div class="flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full bg-emerald-600 inline-block"></span>
                                         <span id="invAdvanceRowLabel" class="uppercase text-xs font-bold text-emerald-900">Less: Advance Deposit (Pending Verification: UPI: 9886650724@ybl)</span>
@@ -799,7 +799,7 @@
                                 <td colspan="3" class="py-3 px-3 text-emerald-950 uppercase text-xs tracking-wider">
                                     Remaining Balance Due at Check-in (INR)
                                 </td>
-                                <td class="py-3 px-3 text-right text-emerald-900 text-lg" id="invBalanceDue">
+                                <td class="py-1.5 px-3 text-right text-emerald-900 text-base font-black" id="invBalanceDue">
                                     ₹1,400
                                 </td>
                             </tr>
@@ -808,8 +808,8 @@
                 </div>
 
                 <!-- Manager Assigned Room & Resort Location Details -->
-                <div id="invRoomAndLocationBox" class="mb-6 p-4 rounded-xl bg-emerald-50/80 border border-emerald-300 text-xs text-gray-800 shadow-xs">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2.5 pb-2.5 border-b border-emerald-200">
+                <div id="invRoomAndLocationBox" class="mb-2 p-3 rounded-xl bg-emerald-50/80 border border-emerald-300 text-xs text-gray-800">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1.5 pb-1.5 border-b border-emerald-200">
                         <div>
                             <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Assigned Room / Cottage</span>
                             <span id="invAssignedRoom" class="font-bold text-gray-900 text-sm">Deluxe Cottage</span>
@@ -823,7 +823,7 @@
                             <span class="text-[11px] text-emerald-700 block mt-0.5">Scanned Payment Verified & Room Allocated</span>
                         </div>
                     </div>
-                    <div class="mb-2.5 pb-2.5 border-b border-emerald-200">
+                    <div class="mb-1.5 pb-1.5 border-b border-emerald-200">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block mb-0.5">🚣 Included River Activities</span>
                         <p id="invRiverActivitiesText" class="font-semibold text-emerald-950 text-xs leading-relaxed">Kali River Rafting, Kayaking, Boating, Jacuzzi Bath, Zorbing, River Crossing</p>
                     </div>
@@ -846,16 +846,16 @@
                 </div>
 
                 <!-- Notes & Terms -->
-                <div class="border-t border-gray-200 pt-4 flex flex-col sm:flex-row justify-between items-start gap-4">
-                    <div class="text-xs text-gray-600 space-y-1.5 max-w-xl">
+                <div class="border-t border-gray-200 pt-2 flex flex-col sm:flex-row justify-between items-start gap-2">
+                    <div class="text-xs text-gray-600 space-y-0.5 max-w-xl">
                         <p class="font-bold text-gray-800 uppercase tracking-wider text-[11px]">Important Guest Terms & Policies:</p>
                         <p class="leading-relaxed">• <strong>ID Proof:</strong> Government photo ID proof is mandatory for every guest during check-in.</p>
                         <p class="leading-relaxed">• <strong>Timings:</strong> Standard Check-in: 12:00 PM | Check-out: 11:00 AM.</p>
                         <p class="leading-relaxed">• <strong>Cancellation Policy:</strong> Strictly no refund in case of cancellation or no-show.</p>
-                        <div class="p-2 rounded-lg bg-amber-50/90 border border-amber-200 text-amber-950 text-[11px] leading-relaxed">
+                        <div class="p-1.5 rounded-lg bg-amber-50/90 border border-amber-200 text-amber-950 text-[10px] leading-snug">
                             <strong>⚠️ Rafting Policy:</strong> River rafting is subject to water levels, weather, and safety conditions. If the activity is unavailable due to unsuitable conditions, no separate refund will be applicable for rafting, and the remaining package inclusions will continue as scheduled.
                         </div>
-                        <p class="pt-1 font-serif italic text-emerald-900 font-semibold text-xs">
+                        <p class="pt-0.5 font-serif italic text-emerald-900 font-semibold text-[11px]">
                             “Thank you for choosing us! 🌿 We look forward to making your stay unforgettable.”
                         </p>
                     </div>
@@ -1020,7 +1020,7 @@
 
             // Only show message if user entered a rate that violates the package minimum
             if (pkg && !isNaN(rateVal) && rateVal < minRate) {
-                const errorMsg = "Rate requires approval. Please contact the management (+91 63611 85700).";
+                const errorMsg = "Rate requires approval. Please contact the manager.";
                 rateInput.setCustomValidity(errorMsg);
                 if (errorElem) {
                     errorElem.textContent = errorMsg;
@@ -1115,7 +1115,7 @@
 
             // Only trigger error if user entered a value that is below the internal minimum tier
             if (!isNaN(advanceVal) && advanceVal < tierInfo.minAdvance) {
-                const advMsg = "Advance amount requires approval. Please contact the management (+91 63611 85700).";
+                const advMsg = "Advance amount requires approval. Please contact the manager.";
                 advanceInput.setCustomValidity(advMsg);
                 if (advErrorElem) {
                     advErrorElem.textContent = advMsg;
@@ -1246,7 +1246,7 @@
             const advanceInput = document.getElementById('advancePaid');
 
             if (!validateAdvanceAmount() || billing.advance < billing.minAdvance) {
-                const advMsg = "Advance amount requires approval. Please contact the management (+91 63611 85700).";
+                const advMsg = "Advance amount requires approval. Please contact the manager.";
                 advanceInput.setCustomValidity(advMsg);
                 const advErrorElem = document.getElementById('advanceErrorMsg');
                 if (advErrorElem) {
@@ -1583,7 +1583,7 @@
 
             if (!entered) {
                 if (err) {
-                    err.textContent = 'Please enter the code sent by manager (+91 63611 85700).';
+                    err.textContent = 'Please enter the approval code sent by the manager.';
                     err.classList.remove('hidden');
                 }
                 return;
@@ -1627,14 +1627,14 @@
                     const codeBox = document.getElementById('codeEntryContainer');
                     if (codeBox) codeBox.classList.add('hidden');
 
-                    alert('✅ Payment Confirmed!\n\nScanned copy of payment confirmation status has been approved by manager (+91 63611 85700).\n\nYour official confirmed invoice is now downloading...');
+                    alert('✅ Payment Confirmed!\n\nPayment has been approved by the resort manager.\n\nYour official confirmed invoice is now downloading...');
                     setTimeout(() => {
                         const dlBtn = document.getElementById('successDownloadPdfBtn');
                         if (dlBtn) downloadInvoicePDF(dlBtn);
                     }, 300);
                 } else {
                     if (err) {
-                        err.textContent = result.message || 'Incorrect code. Please enter the valid code sent by manager (+91 63611 85700).';
+                        err.textContent = result.message || 'Incorrect code. Please contact the manager for the correct approval code.';
                         err.classList.remove('hidden');
                     }
                 }
@@ -1652,7 +1652,7 @@
                         if (dlBtn) downloadInvoicePDF(dlBtn);
                     }, 300);
                 } else if (err) {
-                    err.textContent = 'Incorrect code. Please enter the valid code sent by manager (+91 63611 85700).';
+                    err.textContent = 'Incorrect code. Please contact the manager for the correct approval code.';
                     err.classList.remove('hidden');
                 }
             }
@@ -1684,11 +1684,11 @@
                 if (heading) heading.textContent = 'Payment Confirmed!';
                 if (subheading) {
                     subheading.className = 'text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3 flex items-center justify-center gap-1.5';
-                    subheading.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span><span>Approved by Resort (+91 63611 85700)</span>';
+                    subheading.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span><span>Approved by Resort Management</span>';
                 }
                 if (notice) {
                     notice.className = 'bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3.5 mb-4 text-left w-full text-xs text-emerald-200 space-y-1.5';
-                    notice.innerHTML = '<p class="font-bold text-emerald-300 flex items-center gap-1.5"><svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>Payment Approved & Verified!</span></p><p>Management at +91 63611 85700 has confirmed your advance payment. Your official invoice is now unlocked and available for download.</p>';
+                    notice.innerHTML = '<p class="font-bold text-emerald-300 flex items-center gap-1.5"><svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>Payment Approved & Verified!</span></p><p>Resort management has confirmed your advance payment. Your official invoice is now unlocked and available for download.</p>';
                 }
                 if (dlBtn) {
                     dlBtn.className = 'w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 text-sm transform hover:-translate-y-0.5 cursor-pointer';
@@ -1724,7 +1724,7 @@
                 if (invStampSub) invStampSub.textContent = 'Digitally Verified & Issued';
 
                 if (showAlert) {
-                    alert('✅ Payment Verified & Confirmed!\n\nManagement (+91 63611 85700) has approved this reservation. The official invoice is now unlocked and ready to download.');
+                    alert('✅ Payment Verified & Confirmed!\n\nThe resort manager has approved this reservation. The official invoice is now unlocked and ready to download.');
                 }
             } else {
                 if (dlBtn) {
@@ -1782,7 +1782,7 @@
         function downloadInvoicePDF(btnElement) {
             // STRICT ENFORCEMENT: Invoice cannot be issued or downloaded until payment is confirmed
             if (!isPaymentApproved) {
-                alert("⚠️ PAYMENT CONFIRMATION REQUIRED\n\nYour advance payment has not yet been verified and approved by resort management (+91 63611 85700).\n\nThe official invoice will ONLY be unlocked once management confirms your payment screenshot.\n\nPlease send your UPI payment screenshot in the WhatsApp chat.");
+                alert("⚠️ PAYMENT CONFIRMATION REQUIRED\n\nYour advance payment has not yet been verified and approved by resort resort management.\n\nThe official invoice will ONLY be unlocked once management confirms your payment screenshot.\n\nPlease send your UPI payment screenshot to the manager via WhatsApp.");
                 return;
             }
             generateInvoiceData();
@@ -1808,10 +1808,10 @@
             // Explicitly force the 768px desktop width (matching the modal's max-w-3xl)
             // This ensures all Tailwind responsive styles (sm: flex-row, sm: grid-cols-2) render
             // in two-column desktop format, exactly as viewed in the modal.
-            clone.style.width = '768px';
-            clone.style.minWidth = '768px';
-            clone.style.maxWidth = '768px';
-            clone.style.padding = '32px';
+            clone.style.width = '750px';
+            clone.style.minWidth = '750px';
+            clone.style.maxWidth = '750px';
+            clone.style.padding = '20px 24px';
             clone.style.backgroundColor = '#ffffff';
             clone.style.color = '#1f2937';
             clone.style.boxSizing = 'border-box';
@@ -1826,7 +1826,7 @@
             sandbox.style.position = 'fixed';
             sandbox.style.top = '0';
             sandbox.style.left = '0';
-            sandbox.style.width = '768px';
+            sandbox.style.width = '750px';
             sandbox.style.backgroundColor = '#ffffff';
             sandbox.style.zIndex = '999999';
             sandbox.style.opacity = '0.01'; // Invisible to user during render but readable by html2canvas
@@ -1842,9 +1842,9 @@
             const filename = `Invoice_${currentInvoiceNumber}_${guest}.pdf`;
 
             const opt = {
-                margin:       [6, 6, 6, 6],
+                margin:       [4, 4, 4, 4],
                 filename:     filename,
-                image:        { type: 'jpeg', quality: 0.98 },
+                image:        { type: 'jpeg', quality: 0.97 },
                 enableLinks:  true,
                 html2canvas:  { 
                     scale: (window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) ? 1.5 : 2, 
@@ -1854,10 +1854,11 @@
                     y: 0,
                     scrollX: 0,
                     scrollY: 0,
-                    width: 768,
-                    windowWidth: 768
+                    width: 750,
+                    windowWidth: 750
                 },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: 'avoid-all' }
             };
 
             // Generate PDF and clean up sandbox
@@ -1923,7 +1924,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span>Sending Notification Directly to Manager (+91 63611 85700)...</span>
+                    <span>Sending Notification Directly to Manager...</span>
                 `;
             }
 

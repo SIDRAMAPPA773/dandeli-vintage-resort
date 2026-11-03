@@ -1,11 +1,14 @@
 // Dandeli Vintage Resorts - Booking & Payment Backend Server
 // Automated Direct SMS Dispatch & Manager Portal with WhatsApp Confirmation + Room & Location Details
 
+require('dotenv').config();
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 
 const PORT = process.env.PORT || 3000;
 const MANAGER_PHONE = '6361185700';
@@ -15,23 +18,143 @@ const MANAGER_PHONE_FORMATTED = '+91 63611 85700';
 const BASE_DIR = __dirname;
 const ASSETS_DIR = path.join(BASE_DIR, 'Booking & Payment');
 const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
-const DATA_FILE = path.join(BASE_DIR, 'bookings.json');
 const SMS_LOG_FILE = path.join(BASE_DIR, 'sms_outbox.log');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-// Load stored bookings
-let bookings = {};
-if (fs.existsSync(DATA_FILE)) {
+// ─── MongoDB Booking Schema ────────────────────────────────────────────────
+const bookingSchema = new mongoose.Schema({
+    id:             { type: String, required: true, unique: true },
+    invoiceNumber:  { type: String },
+    code:           { type: String },
+    status:         { type: String, default: 'AWAITING_VERIFICATION' },
+    createdAt:      { type: String },
+    confirmedAt:    { type: String },
+    name:           { type: String },
+    mobNo:          { type: String },
+    noOfPersons:    { type: mongoose.Schema.Types.Mixed },
+    checkInDate:    { type: String },
+    checkInTime:    { type: String },
+    checkOutDate:   { type: String },
+    checkOutTime:   { type: String, default: '11:00 AM' },
+    noOfNights:     { type: mongoose.Schema.Types.Mixed },
+    resort:         { type: String },
+    package:        { type: String },
+    ratePerPerson:  { type: Number },
+    totalAmount:    { type: Number },
+    advanceAmount:  { type: Number },
+    balanceAmount:  { type: Number },
+    hasScreenshot:  { type: Boolean, default: false },
+    screenshotUrl:  { type: String, default: null },
+    roomNumber:     { type: String },
+    roomNotes:      { type: String },
+    resortAddress:  { type: String },
+    mapsLocation:   { type: String },
+    managerPhone:   { type: String },
+    riverActivities:{ type: String },
+    landmark:       { type: String }
+}, { strict: false });
+
+const Booking = mongoose.model('Booking', bookingSchema);
+
+// ─── Connect to MongoDB Atlas ─────────────────────────────────────────────
+const MONGODB_URI = process.env.MONGODB_URI || '';
+
+if (!MONGODB_URI || MONGODB_URI.includes('<username>')) {
+    console.warn('\n⚠️  WARNING: MONGODB_URI not set in .env — running in LOCAL FILE fallback mode.');
+    console.warn('   Set your MongoDB Atlas URI in .env to enable cloud database.\n');
+}
+
+let mongoConnected = false;
+
+async function connectMongo() {
+    if (!MONGODB_URI || MONGODB_URI.includes('<username>')) return;
     try {
-        bookings = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    } catch (e) {
-        bookings = {};
+        await mongoose.connect(MONGODB_URI);
+        mongoConnected = true;
+        console.log('✅ MongoDB Atlas connected successfully!');
+    } catch (err) {
+        console.error('❌ MongoDB connection failed:', err.message);
+        console.warn('   Falling back to local JSON file storage.\n');
     }
 }
 
-function saveBookings() {
+// ─── Local JSON Fallback (used when MongoDB not connected) ────────────────
+const DATA_FILE = path.join(BASE_DIR, 'bookings.json');
+let bookings = {};
+
+function loadLocalBookings() {
+    if (fs.existsSync(DATA_FILE)) {
+        try { bookings = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+        catch (e) { bookings = {}; }
+    }
+}
+
+function saveLocalBookings() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(bookings, null, 2), 'utf8');
+}
+
+// ─── Unified DB Helpers ────────────────────────────────────────────────────
+
+async function dbSave(record) {
+    if (mongoConnected) {
+        await Booking.findOneAndUpdate({ id: record.id }, record, { upsert: true, new: true });
+    } else {
+        bookings[record.id] = record;
+        saveLocalBookings();
+    }
+}
+
+async function dbFindById(id) {
+    if (mongoConnected) {
+        const doc = await Booking.findOne({ id }).lean();
+        return doc || null;
+    } else {
+        return bookings[id] || null;
+    }
+}
+
+async function dbFindByInvoice(invoiceNumber) {
+    if (mongoConnected) {
+        return await Booking.findOne({ invoiceNumber }).lean();
+    } else {
+        return Object.values(bookings).find(b => b.invoiceNumber === invoiceNumber) || null;
+    }
+}
+
+async function dbFindByCode(code) {
+    if (mongoConnected) {
+        return await Booking.findOne({ code: { $regex: new RegExp('^' + code + '$', 'i') } }).lean();
+    } else {
+        return Object.values(bookings).find(b => b.code && b.code.toUpperCase() === code.toUpperCase()) || null;
+    }
+}
+
+async function dbUpdate(id, updates) {
+    if (mongoConnected) {
+        const doc = await Booking.findOneAndUpdate({ id }, { $set: updates }, { new: true }).lean();
+        return doc;
+    } else {
+        if (!bookings[id]) return null;
+        Object.assign(bookings[id], updates);
+        saveLocalBookings();
+        return bookings[id];
+    }
+}
+
+async function dbGetAll() {
+    if (mongoConnected) {
+        return await Booking.find({}).lean();
+    } else {
+        return Object.values(bookings);
+    }
+}
+
+// Compatibility shim: keep bookings in sync for Manager Portal HTML template
+async function refreshBookingsCache() {
+    const all = await dbGetAll();
+    bookings = {};
+    all.forEach(b => { bookings[b.id] = b; });
 }
 
 // Generate random 5-digit verification code
@@ -197,8 +320,7 @@ const server = http.createServer(async (req, res) => {
                     riverActivities: 'Kali River Rafting, Kayaking, Boating, Jacuzzi Bath, Zorbing, River Crossing'
                 };
 
-                bookings[bookingId] = bookingRecord;
-                saveBookings();
+                await dbSave(bookingRecord);
 
                 // Dispatch SMS directly to manager (+91 63611 85700)
                 await dispatchManagerSMS(bookingRecord);
@@ -209,7 +331,7 @@ const server = http.createServer(async (req, res) => {
                     success: true,
                     bookingId: bookingId,
                     invoiceNumber: bookingRecord.invoiceNumber,
-                    message: `Booking request sent directly to Resort Management (${MANAGER_PHONE_FORMATTED}). Manager has been notified with your payment status.`
+                    message: `Booking request sent directly to Resort Management. Manager has been notified with your payment status.`
                 }));
             } catch (err) {
                 console.error('Error submitting booking:', err);
@@ -224,7 +346,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/verify-code' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
-        req.on('end', () => {
+        req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
                 const { bookingId, invoiceNumber, code } = data;
@@ -233,14 +355,10 @@ const server = http.createServer(async (req, res) => {
                 // Check master codes
                 if (enteredCode === '63611' || enteredCode === '9999' || enteredCode === 'VINTAGE2026' || enteredCode === 'DVR2026') {
                     let targetBooking = null;
-                    if (bookingId && bookings[bookingId]) {
-                        targetBooking = bookings[bookingId];
-                    } else if (invoiceNumber) {
-                        targetBooking = Object.values(bookings).find(b => b.invoiceNumber === invoiceNumber);
-                    }
+                    if (bookingId) targetBooking = await dbFindById(bookingId);
+                    if (!targetBooking && invoiceNumber) targetBooking = await dbFindByInvoice(invoiceNumber);
                     if (targetBooking) {
-                        targetBooking.status = 'CONFIRMED';
-                        saveBookings();
+                        targetBooking = await dbUpdate(targetBooking.id, { status: 'CONFIRMED' });
                     }
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     return res.end(JSON.stringify({
@@ -253,25 +371,22 @@ const server = http.createServer(async (req, res) => {
 
                 // Check by bookingId, invoiceNumber, or code
                 let targetBooking = null;
-                if (bookingId && bookings[bookingId]) {
-                    targetBooking = bookings[bookingId];
-                } else if (invoiceNumber) {
-                    targetBooking = Object.values(bookings).find(b => b.invoiceNumber === invoiceNumber);
-                } else {
-                    targetBooking = Object.values(bookings).find(b => b.code.toUpperCase() === enteredCode);
-                }
+                if (bookingId) targetBooking = await dbFindById(bookingId);
+                if (!targetBooking && invoiceNumber) targetBooking = await dbFindByInvoice(invoiceNumber);
+                if (!targetBooking) targetBooking = await dbFindByCode(enteredCode);
 
-                if (targetBooking && targetBooking.code.toUpperCase() === enteredCode) {
-                    targetBooking.status = 'CONFIRMED';
-                    targetBooking.confirmedAt = new Date().toISOString();
-                    saveBookings();
+                if (targetBooking && targetBooking.code && targetBooking.code.toUpperCase() === enteredCode) {
+                    targetBooking = await dbUpdate(targetBooking.id, {
+                        status: 'CONFIRMED',
+                        confirmedAt: new Date().toISOString()
+                    });
 
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     return res.end(JSON.stringify({
                         success: true,
                         approved: true,
                         booking: targetBooking,
-                        message: `Payment confirmed by management (${MANAGER_PHONE_FORMATTED}). Scanned copy verified.`
+                        message: `Payment confirmed by management. Scanned copy verified.`
                     }));
                 }
 
@@ -279,7 +394,7 @@ const server = http.createServer(async (req, res) => {
                 res.end(JSON.stringify({
                     success: false,
                     approved: false,
-                    message: `Incorrect code. Please enter the valid approval code sent by manager (${MANAGER_PHONE_FORMATTED}).`
+                    message: `Incorrect code. Please contact the manager for the correct approval code.`
                 }));
             } catch (err) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -293,53 +408,52 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/manager/update-and-confirm' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
-        req.on('end', () => {
+        req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
                 const { bookingId } = data;
-                
-                if (!bookings[bookingId]) {
+
+                const existing = await dbFindById(bookingId);
+                if (!existing) {
                     res.writeHead(404, { 'Content-Type': 'application/json' });
                     return res.end(JSON.stringify({ success: false, error: 'Booking not found' }));
                 }
 
-                const b = bookings[bookingId];
-                b.status = 'CONFIRMED';
-                b.confirmedAt = new Date().toISOString();
+                const updates = { status: 'CONFIRMED', confirmedAt: new Date().toISOString() };
 
                 // Editable Guest Info
-                if (data.name !== undefined) b.name = data.name;
-                if (data.mobNo !== undefined) b.mobNo = data.mobNo;
+                if (data.name !== undefined) updates.name = data.name;
+                if (data.mobNo !== undefined) updates.mobNo = data.mobNo;
 
                 // Editable Stay & Timing Details
-                if (data.checkInDate !== undefined) b.checkInDate = data.checkInDate;
-                if (data.checkInTime !== undefined) b.checkInTime = data.checkInTime;
-                if (data.checkOutDate !== undefined) b.checkOutDate = data.checkOutDate;
-                if (data.checkOutTime !== undefined) b.checkOutTime = data.checkOutTime;
-                if (data.noOfNights !== undefined) b.noOfNights = data.noOfNights;
-                if (data.noOfPersons !== undefined) b.noOfPersons = data.noOfPersons;
-                if (data.package !== undefined) b.package = data.package;
+                if (data.checkInDate !== undefined) updates.checkInDate = data.checkInDate;
+                if (data.checkInTime !== undefined) updates.checkInTime = data.checkInTime;
+                if (data.checkOutDate !== undefined) updates.checkOutDate = data.checkOutDate;
+                if (data.checkOutTime !== undefined) updates.checkOutTime = data.checkOutTime;
+                if (data.noOfNights !== undefined) updates.noOfNights = data.noOfNights;
+                if (data.noOfPersons !== undefined) updates.noOfPersons = data.noOfPersons;
+                if (data.package !== undefined) updates.package = data.package;
 
                 // Editable Billing Breakdown
-                if (data.totalAmount !== undefined) b.totalAmount = data.totalAmount;
-                if (data.advanceAmount !== undefined) b.advanceAmount = data.advanceAmount;
-                if (data.balanceAmount !== undefined) b.balanceAmount = data.balanceAmount;
+                if (data.totalAmount !== undefined) updates.totalAmount = data.totalAmount;
+                if (data.advanceAmount !== undefined) updates.advanceAmount = data.advanceAmount;
+                if (data.balanceAmount !== undefined) updates.balanceAmount = data.balanceAmount;
 
                 // Editable Room, Activities & Location Details
-                if (data.roomNumber !== undefined) b.roomNumber = data.roomNumber;
-                if (data.roomNotes !== undefined) b.roomNotes = data.roomNotes;
-                if (data.riverActivities !== undefined) b.riverActivities = data.riverActivities;
-                if (data.resortAddress !== undefined) b.resortAddress = data.resortAddress;
-                if (data.mapsLocation !== undefined) b.mapsLocation = data.mapsLocation;
-                if (data.managerPhone !== undefined) b.managerPhone = data.managerPhone;
+                if (data.roomNumber !== undefined) updates.roomNumber = data.roomNumber;
+                if (data.roomNotes !== undefined) updates.roomNotes = data.roomNotes;
+                if (data.riverActivities !== undefined) updates.riverActivities = data.riverActivities;
+                if (data.resortAddress !== undefined) updates.resortAddress = data.resortAddress;
+                if (data.mapsLocation !== undefined) updates.mapsLocation = data.mapsLocation;
+                if (data.managerPhone !== undefined) updates.managerPhone = data.managerPhone;
 
-                saveBookings();
+                const updated = await dbUpdate(bookingId, updates);
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     success: true,
-                    code: b.code,
-                    booking: b
+                    code: updated.code,
+                    booking: updated
                 }));
             } catch (e) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -351,6 +465,7 @@ const server = http.createServer(async (req, res) => {
 
     // Manager Portal Page
     if (pathname === '/manager') {
+        await refreshBookingsCache();
         const bookingsList = Object.values(bookings).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1030,11 +1145,16 @@ const server = http.createServer(async (req, res) => {
     res.end('404 Not Found');
 });
 
-server.listen(PORT, () => {
-    console.log(`\n================================================================`);
-    console.log(`🌲 Dandeli Vintage Resorts Booking Server Running!`);
-    console.log(`🌐 Customer Portal : http://localhost:${PORT}`);
-    console.log(`📱 Manager Portal  : http://localhost:${PORT}/manager`);
-    console.log(`📲 Manager Mobile  : ${MANAGER_PHONE_FORMATTED} (${MANAGER_PHONE})`);
-    console.log(`================================================================\n`);
+// Connect to MongoDB, load local fallback, then start server
+loadLocalBookings();
+connectMongo().then(() => {
+    server.listen(PORT, () => {
+        console.log(`\n================================================================`);
+        console.log(`🌲 Dandeli Vintage Resorts Booking Server Running!`);
+        console.log(`🌐 Customer Portal : http://localhost:${PORT}`);
+        console.log(`📱 Manager Portal  : http://localhost:${PORT}/manager`);
+        console.log(`📲 Manager Mobile  : ${MANAGER_PHONE_FORMATTED} (${MANAGER_PHONE})`);
+        console.log(`🍃 Database        : ${mongoConnected ? 'MongoDB Atlas ✅' : 'Local JSON (fallback) ⚠️'}`);
+        console.log(`================================================================\n`);
+    });
 });
